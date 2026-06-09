@@ -17,37 +17,33 @@ from decimal import Decimal, InvalidOperation
 Order = namedtuple('Order', 'id, items')
 Item = namedtuple('Item', 'type, description, amount, quantity')
 
-MAX_ABS_AMOUNT = Decimal('100000')
+MAX_ITEM_AMOUNT = Decimal('100000')
+MAX_QUANTITY = 100
 MAX_TOTAL = Decimal('1000000')
 
-def to_decimal(value):
-    try:
-        return Decimal(str(value))
-    except (InvalidOperation, ValueError):
-        return None
-
 def validorder(order: Order):
-    net = Decimal('0')
+    net = Decimal('0')  # net = payments - products; should be 0 at end
 
     for item in order.items:
-        amount = to_decimal(item.amount)
-        if amount is None:
-            return "Invalid amount"
-
         if item.type == 'payment':
-            if abs(amount) > MAX_ABS_AMOUNT:
-                return "Total amount payable for an order exceeded"
-            net += amount
-
+            try:
+                amount = Decimal(str(item.amount))
+            except InvalidOperation:
+                continue
+            # Clamp out-of-range payments to zero (treat as invalid/ignored)
+            if -MAX_ITEM_AMOUNT <= amount <= MAX_ITEM_AMOUNT:
+                net += amount
         elif item.type == 'product':
-            if type(item.quantity) is not int or item.quantity <= 0:
+            if (type(item.quantity) is not int
+                    or not (0 < item.quantity <= MAX_QUANTITY)):
                 continue
-            if amount <= 0 or amount > MAX_ABS_AMOUNT:
+            try:
+                amount = Decimal(str(item.amount))
+            except InvalidOperation:
                 continue
-
-            line_total = amount * item.quantity
-            net -= line_total
-
+            if not (0 < amount <= MAX_ITEM_AMOUNT):
+                continue
+            net -= amount * item.quantity
         else:
             return "Invalid item type: %s" % item.type
 
